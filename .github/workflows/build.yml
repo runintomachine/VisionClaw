@@ -10,13 +10,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Show Xcode version
-        run: xcodebuild -version
-
       - name: Create Secrets.swift
         run: |
-          cp samples/CameraAccess/CameraAccess/Secrets.swift.example samples/CameraAccess/CameraAccess/Secrets.swift
-          sed -i '' 's/YOUR_GEMINI_API_KEY/${{ secrets.GEMINI_API_KEY }}/' samples/CameraAccess/CameraAccess/Secrets.swift
+          cat > samples/CameraAccess/CameraAccess/Secrets.swift << 'SWIFT'
+          import Foundation
+
+          enum Secrets {
+            static let geminiAPIKey = ""
+            static let openClawHost = "http://MacBook-Pro.local"
+            static let openClawPort = 18789
+            static let openClawHookToken = ""
+            static let openClawGatewayToken = ""
+            static let webrtcSignalingURL = "ws://172.20.10.5:8080"
+          }
+          SWIFT
 
       - name: Build
         run: |
