@@ -21,7 +21,7 @@ jobs:
             static let openClawPort = 18789
             static let openClawHookToken = ""
             static let openClawGatewayToken = ""
-            static let webrtcSignalingURL = "ws://172.20.10.5:8080"
+            static let webrtcSignalingURL = "ws://MacBook-Pro.local:8080"
           }
           SWIFT
 
