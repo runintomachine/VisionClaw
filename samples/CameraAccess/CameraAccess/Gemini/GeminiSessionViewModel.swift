@@ -12,8 +12,7 @@ class GeminiSessionViewModel: ObservableObject {
   @Published var toolCallStatus: ToolCallStatus = .idle
   @Published var openClawConnectionState: OpenClawConnectionState = .notConfigured
   private let geminiService = GeminiLiveService()
-  private let openClawBridge = OpenClawBridge()
-  private var toolCallRouter: ToolCallRouter?
+  // OpenClaw removed: using native Google Search grounding instead
   private let audioManager = AudioManager()
   private let eventClient = OpenClawEventClient()
   private var lastVideoFrameTime: Date = .distantPast
@@ -35,8 +34,6 @@ class GeminiSessionViewModel: ObservableObject {
     audioManager.onAudioCaptured = { [weak self] data in
       guard let self else { return }
       Task { @MainActor in
-        // Mute mic while model speaks when speaker is on the phone
-        // (loudspeaker + co-located mic overwhelms iOS echo cancellation)
         let speakerOnPhone = self.streamingMode == .iPhone || SettingsManager.shared.speakerOutputEnabled
         if speakerOnPhone && self.geminiService.isModelSpeaking { return }
         self.geminiService.sendAudio(data: data)
@@ -54,7 +51,6 @@ class GeminiSessionViewModel: ObservableObject {
     geminiService.onTurnComplete = { [weak self] in
       guard let self else { return }
       Task { @MainActor in
-        // Clear user transcript when AI finishes responding
         self.userTranscript = ""
       }
     }
@@ -74,7 +70,6 @@ class GeminiSessionViewModel: ObservableObject {
       }
     }
 
-    // Handle unexpected disconnection
     geminiService.onDisconnected = { [weak self] reason in
       guard let self else { return }
       Task { @MainActor in
@@ -84,41 +79,15 @@ class GeminiSessionViewModel: ObservableObject {
       }
     }
 
-    // Check OpenClaw connectivity and start fresh session
-    await openClawBridge.checkConnection()
-    openClawBridge.resetSession()
-
-    // Wire tool call handling
-    toolCallRouter = ToolCallRouter(bridge: openClawBridge)
-
-    geminiService.onToolCall = { [weak self] toolCall in
-      guard let self else { return }
-      Task { @MainActor in
-        for call in toolCall.functionCalls {
-          self.toolCallRouter?.handleToolCall(call) { [weak self] response in
-            self?.geminiService.sendToolResponse(response)
-          }
-        }
-      }
-    }
-
-    geminiService.onToolCallCancellation = { [weak self] cancellation in
-      guard let self else { return }
-      Task { @MainActor in
-        self.toolCallRouter?.cancelToolCalls(ids: cancellation.ids)
-      }
-    }
-
     // Observe service state
     stateObservation = Task { [weak self] in
       guard let self else { return }
       while !Task.isCancelled {
-        try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+        try? await Task.sleep(nanoseconds: 100_000_000)
         guard !Task.isCancelled else { break }
         self.connectionState = self.geminiService.connectionState
         self.isModelSpeaking = self.geminiService.isModelSpeaking
-        self.toolCallStatus = self.openClawBridge.lastToolCallStatus
-        self.openClawConnectionState = self.openClawBridge.connectionState
+        // Google Search grounding is handled natively by Gemini
       }
     }
 
@@ -131,7 +100,7 @@ class GeminiSessionViewModel: ObservableObject {
       return
     }
 
-    // Connect to Gemini and wait for setupComplete
+    // Connect to Gemini
     let setupOk = await geminiService.connect()
 
     if !setupOk {
@@ -178,8 +147,6 @@ class GeminiSessionViewModel: ObservableObject {
 
   func stopSession() {
     eventClient.disconnect()
-    toolCallRouter?.cancelAll()
-    toolCallRouter = nil
     audioManager.stopCapture()
     geminiService.disconnect()
     stateObservation?.cancel()
@@ -189,7 +156,6 @@ class GeminiSessionViewModel: ObservableObject {
     isModelSpeaking = false
     userTranscript = ""
     aiTranscript = ""
-    toolCallStatus = .idle
   }
 
   func sendVideoFrameIfThrottled(image: UIImage) {
@@ -200,5 +166,4 @@ class GeminiSessionViewModel: ObservableObject {
     lastVideoFrameTime = now
     geminiService.sendVideoFrame(image: image)
   }
-
 }

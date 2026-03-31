@@ -194,7 +194,7 @@ class GeminiLiveService: ObservableObject {
         ],
         "tools": [
           [
-            "functionDeclarations": ToolDeclarations.allDeclarations()
+            "googleSearch": [:] as [String: Any]
           ]
         ],
         "realtimeInputConfig": [
@@ -284,13 +284,6 @@ class GeminiLiveService: ObservableObject {
       return
     }
 
-    // Tool call from model (top-level message, not inside serverContent)
-    if let toolCall = GeminiToolCall(json: json) {
-      NSLog("[Gemini] Tool call received: %d function(s)", toolCall.functionCalls.count)
-      onToolCall?(toolCall)
-      return
-    }
-
     // Tool call cancellation (user interrupted during tool execution)
     if let cancellation = GeminiToolCallCancellation(json: json) {
       NSLog("[Gemini] Tool call cancellation: %@", cancellation.ids.joined(separator: ", "))
@@ -316,7 +309,6 @@ class GeminiLiveService: ObservableObject {
              let audioData = Data(base64Encoded: base64Data) {
             if !isModelSpeaking {
               isModelSpeaking = true
-              // Log latency: time from end of user speech to first audio response
               if let speechEnd = lastUserSpeechEnd, !responseLatencyLogged {
                 let latency = Date().timeIntervalSince(speechEnd)
                 NSLog("[Latency] %.0fms (user speech end -> first audio)", latency * 1000)
