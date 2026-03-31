@@ -2,7 +2,7 @@ import Foundation
 
 enum GeminiConfig {
   static let websocketBaseURL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
-  static let model = "models/gemini-3.1-flash-live-preview"
+  static let model = "models/gemini-2.0-flash-live-001"
 
   static let inputAudioSampleRate: Double = 16000
   static let outputAudioSampleRate: Double = 24000
