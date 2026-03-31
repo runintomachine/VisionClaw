@@ -148,9 +148,11 @@ class AudioManager {
     playerNode.play()
     isCapturing = true
     // Re-apply speaker override after engine start (iOS resets it)
-    if useIPhoneMode || SettingsManager.shared.speakerOutputEnabled {
+    if SettingsManager.shared.speakerOutputEnabled {
       try? AVAudioSession.sharedInstance().overrideOutputAudioPort(.speaker)
       NSLog("[Audio] Speaker override re-applied after engine start")
+    } else {
+      try? AVAudioSession.sharedInstance().overrideOutputAudioPort(.none)
     }
   }
 
