@@ -194,7 +194,7 @@ class GeminiLiveService: ObservableObject {
         ],
         "tools": [
           [
-            "googleSearch": [:] as [String: Any]
+            "google_search": [:] as [String: Any]
           ]
         ],
         "realtimeInputConfig": [
