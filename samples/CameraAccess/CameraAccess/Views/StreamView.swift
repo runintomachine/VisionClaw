@@ -51,16 +51,6 @@ struct StreamView: View {
           .foregroundColor(.white)
       }
 
-      // Tap anywhere to interrupt Gemini mid-speech
-      if geminiVM.isGeminiActive && geminiVM.isModelSpeaking {
-        Color.clear
-          .contentShape(Rectangle())
-          .onTapGesture {
-            geminiVM.interruptGemini()
-          }
-          .ignoresSafeArea()
-      }
-
       // Gemini status overlay (top) + speaking indicator
       if geminiVM.isGeminiActive {
         VStack {
@@ -111,7 +101,16 @@ struct StreamView: View {
       }
       .padding(.all, 24)
 
+      // Auto-pause overlay (shown after inactivity, tap to resume)
+      if geminiVM.isPaused {
+        PauseOverlayView(
+          onResume: { geminiVM.resumeFromPause() },
+          onEnd: { geminiVM.stopSession() }
+        )
+        .transition(.opacity)
+      }
     }
+    .animation(.easeInOut(duration: 0.25), value: geminiVM.isPaused)
     .onDisappear {
       Task {
         if viewModel.streamingStatus != .stopped {

@@ -18,6 +18,12 @@ class GeminiSessionViewModel: ObservableObject {
   private var lastVideoFrameTime: Date = .distantPast
   private var stateObservation: Task<Void, Never>?
 
+  // Auto-pause after inactivity (like Gemini app)
+  @Published var isPaused: Bool = false
+  private var inactivityTimer: Timer?
+  private let inactivityTimeout: TimeInterval = 120  // 2 minutes, like Gemini app
+  private var lastActivityTime: Date = Date()
+
   var streamingMode: StreamingMode = .glasses
 
   func startSession() async {
@@ -52,6 +58,7 @@ class GeminiSessionViewModel: ObservableObject {
       guard let self else { return }
       Task { @MainActor in
         self.userTranscript = ""
+        self.resetInactivityTimer()  // activity: Gemini finished speaking
       }
     }
 
@@ -60,6 +67,7 @@ class GeminiSessionViewModel: ObservableObject {
       Task { @MainActor in
         self.userTranscript += text
         self.aiTranscript = ""
+        self.resetInactivityTimer()  // activity: user speaking
       }
     }
 
@@ -132,6 +140,9 @@ class GeminiSessionViewModel: ObservableObject {
       return
     }
 
+    // Start inactivity auto-pause timer
+    resetInactivityTimer()
+
     // Connect to OpenClaw event stream for proactive notifications
     if SettingsManager.shared.proactiveNotificationsEnabled {
       eventClient.onNotification = { [weak self] text in
@@ -145,16 +156,46 @@ class GeminiSessionViewModel: ObservableObject {
     }
   }
 
-  func interruptGemini() {
-    guard isGeminiActive, connectionState == .ready else { return }
-    // Stop local playback immediately
+  // Called when user taps screen to resume from auto-pause
+  func resumeFromPause() {
+    guard isPaused else { return }
+    do {
+      try audioManager.resumeCapture()
+      isPaused = false
+      resetInactivityTimer()
+      NSLog("[Gemini] Resumed from auto-pause")
+    } catch {
+      errorMessage = "Resume failed: \(error.localizedDescription)"
+    }
+  }
+
+  // MARK: - Inactivity Timer
+
+  func resetInactivityTimer() {
+    lastActivityTime = Date()
+    inactivityTimer?.invalidate()
+    guard isGeminiActive, !isPaused else { return }
+    inactivityTimer = Timer.scheduledTimer(withTimeInterval: inactivityTimeout, repeats: false) { [weak self] _ in
+      Task { @MainActor [weak self] in
+        self?.autoPause()
+      }
+    }
+  }
+
+  private func autoPause() {
+    guard isGeminiActive, !isPaused, connectionState == .ready else { return }
+    audioManager.pauseCapture()
     audioManager.stopPlayback()
-    // Signal server to stop generating
-    geminiService.interruptModel()
-    NSLog("[Gemini] User interrupted model")
+    isPaused = true
+    inactivityTimer?.invalidate()
+    inactivityTimer = nil
+    NSLog("[Gemini] Auto-paused after inactivity")
   }
 
   func stopSession() {
+    inactivityTimer?.invalidate()
+    inactivityTimer = nil
+    isPaused = false
     eventClient.disconnect()
     audioManager.stopCapture()
     geminiService.disconnect()
