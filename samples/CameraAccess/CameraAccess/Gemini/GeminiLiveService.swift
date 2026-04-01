@@ -33,6 +33,8 @@ class GeminiLiveService: ObservableObject {
   private let delegate = WebSocketDelegate()
   private var urlSession: URLSession!
   private let sendQueue = DispatchQueue(label: "gemini.send", qos: .userInitiated)
+  private var keepAliveTimer: Timer?
+  private let keepAliveInterval: TimeInterval = 20  // seconds of silence before sending silent audio
 
   init() {
     let config = URLSessionConfiguration.default
@@ -101,6 +103,7 @@ class GeminiLiveService: ObservableObject {
   }
 
   func disconnect() {
+    stopKeepAlive()
     receiveTask?.cancel()
     receiveTask = nil
     webSocketTask?.cancel(with: .normalClosure, reason: nil)
@@ -165,6 +168,47 @@ class GeminiLiveService: ObservableObject {
         ]
       ]
       self?.sendJSON(msg)
+    }
+  }
+
+  // MARK: - Keep-Alive
+
+  private func startKeepAlive() {
+    stopKeepAlive()
+    // Must schedule on main run loop so timer fires while app is active
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      self.keepAliveTimer = Timer.scheduledTimer(
+        withTimeInterval: self.keepAliveInterval,
+        repeats: true
+      ) { [weak self] _ in
+        self?.sendSilentAudio()
+      }
+      NSLog("[Gemini] Keep-alive timer started (every %.0fs)", self.keepAliveInterval)
+    }
+  }
+
+  private func stopKeepAlive() {
+    keepAliveTimer?.invalidate()
+    keepAliveTimer = nil
+  }
+
+  private func sendSilentAudio() {
+    guard connectionState == .ready else { return }
+    // 100ms of silence at 16kHz mono Int16 = 1600 frames * 2 bytes = 3200 bytes of zeros
+    let silentData = Data(count: 3200)
+    sendQueue.async { [weak self] in
+      let base64 = silentData.base64EncodedString()
+      let json: [String: Any] = [
+        "realtimeInput": [
+          "audio": [
+            "mimeType": "audio/pcm;rate=16000",
+            "data": base64
+          ]
+        ]
+      ]
+      self?.sendJSON(json)
+      NSLog("[Gemini] Keep-alive: silent audio sent")
     }
   }
 
@@ -271,6 +315,7 @@ class GeminiLiveService: ObservableObject {
     if json["setupComplete"] != nil {
       connectionState = .ready
       resolveConnect(success: true)
+      startKeepAlive()
       return
     }
 
