@@ -43,9 +43,18 @@ jobs:
             DEVELOPMENT_TEAM="" \
             PROVISIONING_PROFILE_SPECIFIER=""
 
-      - name: Upload artifact
+      - name: Package IPA
+        run: |
+          cd samples/CameraAccess
+          mkdir -p build/Payload
+          cp -r build/CameraAccess.xcarchive/Products/Applications/CameraAccess.app build/Payload/
+          cd build
+          zip -r VisionClaw.ipa Payload
+          echo "IPA size: $(du -sh VisionClaw.ipa | cut -f1)"
+
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: VisionClaw-Build
-          path: samples/CameraAccess/build/CameraAccess.xcarchive
+          name: VisionClaw-IPA
+          path: samples/CameraAccess/build/VisionClaw.ipa
           retention-days: 7
