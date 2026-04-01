@@ -3,12 +3,15 @@ name: Build VisionClaw IPA
 on:
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: macos-26
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Create Secrets.swift
         run: |
@@ -53,7 +56,7 @@ jobs:
           echo "IPA size: $(du -sh VisionClaw.ipa | cut -f1)"
 
       - name: Upload IPA
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: VisionClaw-IPA
           path: samples/CameraAccess/build/VisionClaw.ipa
