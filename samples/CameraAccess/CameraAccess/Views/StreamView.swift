@@ -100,7 +100,17 @@ struct StreamView: View {
         ControlsView(viewModel: viewModel, geminiVM: geminiVM, webrtcVM: webrtcVM)
       }
       .padding(.all, 24)
+
+      // Pause overlay (sits above everything, only when Gemini is active & paused)
+      if geminiVM.isPaused {
+        PauseOverlayView(
+          onResume: { geminiVM.togglePause() },
+          onEnd: { geminiVM.stopSession() }
+        )
+        .transition(.opacity)
+      }
     }
+    .animation(.easeInOut(duration: 0.2), value: geminiVM.isPaused)
     .onDisappear {
       Task {
         if viewModel.streamingStatus != .stopped {
@@ -187,6 +197,16 @@ struct ControlsView: View {
       }
       .opacity(webrtcVM.isActive ? 0.4 : 1.0)
       .disabled(webrtcVM.isActive)
+
+      // Pause button (only visible when Gemini is active)
+      if geminiVM.isGeminiActive {
+        CircleButton(
+          icon: geminiVM.isPaused ? "play.fill" : "pause.fill",
+          text: nil
+        ) {
+          geminiVM.togglePause()
+        }
+      }
 
       // WebRTC Live Stream button (disabled when Gemini is active — audio conflict)
       CircleButton(
