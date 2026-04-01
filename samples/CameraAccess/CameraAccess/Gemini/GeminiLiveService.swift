@@ -173,15 +173,26 @@ class GeminiLiveService: ObservableObject {
 
   func interruptModel() {
     guard connectionState == .ready, isModelSpeaking else { return }
+    // The setup already has activityHandling = START_OF_ACTIVITY_INTERRUPTS
+    // Sending a burst of audio activity triggers the server-side interrupt naturally
     sendQueue.async { [weak self] in
-      // Sending a turnComplete signal interrupts the model mid-speech
-      let msg: [String: Any] = [
-        "clientContent": [
-          "turnComplete": true
+      // Send a small non-silent burst (low amplitude noise) to trigger activity detection
+      var burst = [Int16](repeating: 0, count: 1600)
+      for i in 0..<burst.count {
+        burst[i] = Int16.random(in: -200...200)  // low amplitude, enough for VAD
+      }
+      let data = burst.withUnsafeBufferPointer { Data(buffer: $0) }
+      let base64 = data.base64EncodedString()
+      let json: [String: Any] = [
+        "realtimeInput": [
+          "audio": [
+            "mimeType": "audio/pcm;rate=16000",
+            "data": base64
+          ]
         ]
       ]
-      self?.sendJSON(msg)
-      NSLog("[Gemini] Interrupt sent")
+      self?.sendJSON(json)
+      NSLog("[Gemini] Interrupt burst sent")
     }
   }
 
