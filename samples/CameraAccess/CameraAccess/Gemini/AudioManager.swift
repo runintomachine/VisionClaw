@@ -190,6 +190,57 @@ class AudioManager {
     playerNode.stop()
     playerNode.play()
   }
+  // Lightweight pause: mute mic input without tearing down the engine
+  func pauseCapture() {
+    guard isCapturing else { return }
+    audioEngine.inputNode.removeTap(onBus: 0)
+    NSLog("[Audio] Capture paused (tap removed, engine still running)")
+  }
+
+  // Resume after pauseCapture: reinstall tap without restarting engine
+  func resumeCapture() throws {
+    guard isCapturing else { return }
+    let inputNode = audioEngine.inputNode
+    let inputNativeFormat = inputNode.outputFormat(forBus: 0)
+    let needsResample = inputNativeFormat.sampleRate != GeminiConfig.inputAudioSampleRate
+        || inputNativeFormat.channelCount != GeminiConfig.audioChannels
+    var converter: AVAudioConverter?
+    if needsResample {
+      let resampleFormat = AVAudioFormat(
+        commonFormat: .pcmFormatFloat32,
+        sampleRate: GeminiConfig.inputAudioSampleRate,
+        channels: GeminiConfig.audioChannels,
+        interleaved: false
+      )!
+      converter = AVAudioConverter(from: inputNativeFormat, to: resampleFormat)
+    }
+    sendQueue.async { self.accumulatedData = Data() }
+    inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputNativeFormat) { [weak self] buffer, _ in
+      guard let self else { return }
+      let pcmData: Data
+      if let converter {
+        let resampleFormat = AVAudioFormat(
+          commonFormat: .pcmFormatFloat32,
+          sampleRate: GeminiConfig.inputAudioSampleRate,
+          channels: GeminiConfig.audioChannels,
+          interleaved: false
+        )!
+        guard let resampled = self.convertBuffer(buffer, using: converter, targetFormat: resampleFormat) else { return }
+        pcmData = self.float32BufferToInt16Data(resampled)
+      } else {
+        pcmData = self.float32BufferToInt16Data(buffer)
+      }
+      self.sendQueue.async {
+        self.accumulatedData.append(pcmData)
+        if self.accumulatedData.count >= self.minSendBytes {
+          let chunk = self.accumulatedData
+          self.accumulatedData = Data()
+          self.onAudioCaptured?(chunk)
+        }
+      }
+    }
+    NSLog("[Audio] Capture resumed (tap reinstalled)")
+  }
 
   func stopCapture() {
     guard isCapturing else { return }

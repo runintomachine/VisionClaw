@@ -149,17 +149,17 @@ class GeminiSessionViewModel: ObservableObject {
   func togglePause() {
     guard isGeminiActive, connectionState == .ready else { return }
     if isPaused {
-      // Resume: restart mic capture
+      // Resume: reinstall mic tap without restarting engine
       do {
-        try audioManager.startCapture()
+        try audioManager.resumeCapture()
         isPaused = false
         NSLog("[Gemini] Session resumed")
       } catch {
         errorMessage = "Resume failed: \(error.localizedDescription)"
       }
     } else {
-      // Pause: stop mic + cut output immediately, keep WebSocket alive
-      audioManager.stopCapture()
+      // Pause: remove mic tap + cut audio output, engine stays running, WebSocket alive
+      audioManager.pauseCapture()
       audioManager.stopPlayback()
       isPaused = true
       NSLog("[Gemini] Session paused")
