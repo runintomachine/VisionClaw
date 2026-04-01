@@ -4,7 +4,6 @@ import SwiftUI
 @MainActor
 class GeminiSessionViewModel: ObservableObject {
   @Published var isGeminiActive: Bool = false
-  @Published var isPaused: Bool = false
   @Published var connectionState: GeminiConnectionState = .disconnected
   @Published var isModelSpeaking: Bool = false
   @Published var errorMessage: String?
@@ -146,24 +145,13 @@ class GeminiSessionViewModel: ObservableObject {
     }
   }
 
-  func togglePause() {
+  func interruptGemini() {
     guard isGeminiActive, connectionState == .ready else { return }
-    if isPaused {
-      // Resume: reinstall mic tap without restarting engine
-      do {
-        try audioManager.resumeCapture()
-        isPaused = false
-        NSLog("[Gemini] Session resumed")
-      } catch {
-        errorMessage = "Resume failed: \(error.localizedDescription)"
-      }
-    } else {
-      // Pause: remove mic tap + cut audio output, engine stays running, WebSocket alive
-      audioManager.pauseCapture()
-      audioManager.stopPlayback()
-      isPaused = true
-      NSLog("[Gemini] Session paused")
-    }
+    // Stop local playback immediately
+    audioManager.stopPlayback()
+    // Signal server to stop generating
+    geminiService.interruptModel()
+    NSLog("[Gemini] User interrupted model")
   }
 
   func stopSession() {
@@ -173,7 +161,6 @@ class GeminiSessionViewModel: ObservableObject {
     stateObservation?.cancel()
     stateObservation = nil
     isGeminiActive = false
-    isPaused = false
     connectionState = .disconnected
     isModelSpeaking = false
     userTranscript = ""

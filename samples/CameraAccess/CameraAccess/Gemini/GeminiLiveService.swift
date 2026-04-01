@@ -171,6 +171,20 @@ class GeminiLiveService: ObservableObject {
     }
   }
 
+  func interruptModel() {
+    guard connectionState == .ready, isModelSpeaking else { return }
+    sendQueue.async { [weak self] in
+      // Sending a turnComplete signal interrupts the model mid-speech
+      let msg: [String: Any] = [
+        "clientContent": [
+          "turnComplete": true
+        ]
+      ]
+      self?.sendJSON(msg)
+      NSLog("[Gemini] Interrupt sent")
+    }
+  }
+
   // MARK: - Keep-Alive
 
   private func startKeepAlive() {
